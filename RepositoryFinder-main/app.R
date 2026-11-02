@@ -89,6 +89,8 @@ EMBARGO_BANDS <- c(
 )
 
 YES_NO <- c("Yes", "No")
+FREE_CHOICES <- c("Yes", "No", "Depends on institute")
+REGION_CHOICES <- c("Europe", "United States")
 
 url_license_chooser <- "https://ufal.github.io/public-license-selector/"
 
@@ -134,15 +136,6 @@ leaf_map         <- maps$leaf_map
 leaves_under_sub <- maps$leaves_under_sub
 leaves_under_cat <- maps$leaves_under_cat
 TREE_INPUTS      <- c(names(leaves_under_cat), names(leaves_under_sub), names(leaf_map))
-
-# Where a repository's domain sits in the tree, for the card subtitle.
-domain_path <- function(leaf) {
-  hit <- taxonomy[tolower(taxonomy$Subitem) == tolower(leaf), , drop = FALSE]
-  if (nrow(hit) == 0) return(leaf)
-  sub <- hit$Subcategory[1]
-  # Subcategories like "BIOSPHERE (organisms, ecosystems)" already say it all.
-  if (grepl(leaf, sub, ignore.case = TRUE)) sub else paste(sub, "→", leaf)
-}
 
 # ------------------------------------------------------------------
 # Display helpers. Every undocumented value is shown as UNKNOWN, so the
@@ -205,57 +198,79 @@ repo_facts <- function(repo) {
     fact("Version control", format_yes_no(repo$version_control)),
     fact("API access",      format_yes_no(repo$api_access)),
     fact("DOI service",     format_yes_no(repo$doi_service)),
-    fact("Affiliation required", format_yes_no(repo$affiliation_required))
+    fact("Free to store data", format_yes_no(repo$free_to_store))
   )
 }
 
 # ------------------------------------------------------------------
 # Theme + responsive CSS
 # ------------------------------------------------------------------
+# Colours, fonts and sizes follow the NIOO-KNAW website (https://nioo.knaw.nl).
 theme <- bs_theme(
   version = 4,
-  bg = "#002fa7",
-  fg = "#FFFFFF",
-  primary = "#FF6347",
-  base_font = font_google("Roboto Mono")
+  bg = "#EFF3F4",
+  fg = "#082235",
+  primary = "#004b85",
+  base_font = font_google("Open Sans", wght = c(400, 600, 700)),
+  heading_font = font_google("EB Garamond", wght = 600)
 )
 
 custom_css <- "
 :root {
-  --info-btn-size: 30px;
+  --nioo-text: #082235;
+  --nioo-title: #004b85;
+  --nioo-link: #004b85;
+  --nioo-button: #004b85;
+  --nioo-accent: #FDD447;
+  --nioo-border: #E2dfdc;
+  --nioo-page: #EFF3F4;
+  --info-btn-size: 22px;
   --info-nudge-vertical: 0px;
 }
-body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body { background-color: var(--nioo-page); color: var(--nioo-text); font-size: 16px; line-height: 1.8; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+h1, h2, h3, h4, h5 { font-family: 'EB Garamond', serif; font-weight: 600; color: var(--nioo-title); line-height: 1.25; margin: 0 0 .35em 0; }
+h4 { font-size: 20px; }
+h5 { font-size: 18px; }
+::selection { background: var(--nioo-accent); }
+a { color: var(--nioo-link); text-underline-offset: 40%; }
+a:hover, a:focus { color: var(--nioo-title); }
+input[type=checkbox], input[type=radio] { accent-color: var(--nioo-link); }
 
-.hero { padding: 40px 0 10px 0; margin-bottom: 10px; }
-.hero h1 { font-weight: 600; line-height: 1.05; letter-spacing: -0.6px; margin-bottom: 8px; font-size: 3rem; color: #FFFFFF; text-align: left !important; }
-.title-highlight { color: #FF6347; }
-.subtitle { color: #B0C4FF; font-style: italic; margin-bottom: 22px; text-align: left; }
+.hero { background: linear-gradient(47deg, rgba(0,75,133,.9) 60%, rgba(8,121,192,.7) 100%); border-radius: 12px; padding: 40px 28px 26px; margin: 20px 0 24px; }
+.hero h1 { font-family: 'Open Sans', sans-serif; font-weight: 600; line-height: 1.05; margin-bottom: 8px; font-size: 3rem; color: #FFFFFF; text-align: left !important; }
+.subtitle { color: rgba(255,255,255,.9); font-size: 18px; margin-bottom: 14px; text-align: left; }
 
-.controls-panel { background: transparent; border: 1px solid #FF6347; border-radius: 12px; padding: 18px; position: relative; }
-.controls-panel h4 { font-weight: 600; margin-bottom: 14px; color: #FFFFFF; }
-.controls-panel h5 { font-size: 1rem; margin: 0; }
-.repo-card { background: transparent; border: 1px solid #FF6347; border-radius: 12px; padding: 18px; margin-bottom: 30px; height: 100%; display: flex; flex-direction: column; }
-.repo-card h4 { font-weight: 600; font-size: 1.15rem; margin-bottom: 6px; color: #FFFFFF; }
-.repo-card .domain-line { color: #B0C4FF; font-size: 0.8rem; margin-bottom: 10px; }
-.repo-card .card-actions { margin-top: auto; padding-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
-.repo-facts { list-style: none; padding-left: 0; margin-bottom: 0; font-size: 0.85rem; }
+.controls-panel { background: #FFFFFF; border: 1px solid var(--nioo-border); border-radius: 12px; padding: 18px; position: relative; }
+.controls-panel h4 { font-weight: 600; font-size: 24px; margin-bottom: 14px; }
+.controls-panel h5 { font-size: 18px; margin: 0; }
+.repo-card { background: #FFFFFF; border: 1px solid var(--nioo-border); border-radius: 12px; padding: 18px; margin-bottom: 30px; height: 100%; display: flex; flex-direction: column; }
+.repo-card h4 { font-weight: 600; font-size: 22px; margin-bottom: 6px; }
+.repo-card .card-actions { margin-top: auto; padding-top: 10px; display: grid; grid-template-columns: auto auto; justify-content: start; gap: 8px; }
+.repo-facts { list-style: none; padding-left: 0; margin-bottom: 0; font-size: 0.9rem; }
 .repo-facts li { margin-bottom: 3px; }
-.repo-facts .k { color: #B0C4FF; }
-.v-unknown { color: #8FA4E8; font-style: italic; }
-.result-count { color: #B0C4FF; margin-bottom: 16px; }
-.btn-small { padding: 6px 12px; font-size: 0.85rem; border-radius: 8px; }
-.btn-selected { background-color: #FF6347 !important; color: #FFFFFF !important; border: 1px solid #FF6347 !important; }
+.repo-facts .k { color: var(--nioo-title); font-weight: 600; }
+.v-unknown { color: rgba(8,34,53,.55); font-style: italic; }
+.muted { color: rgba(8,34,53,.6); }
+.result-count { color: rgba(8,34,53,.6); margin-bottom: 16px; }
+
+/* Buttons: NIOO small buttons - dark blue outline, uppercase, pill; hover fills them */
+.btn-small { padding: 9px 15px 8px; font-size: 12px; line-height: 1.5; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; border-radius: 1.8rem; border-width: 2px; transition: all .2s ease; }
+.btn-store { grid-column: 1 / -1; }
+.btn-outline-danger, .btn-primary { color: var(--nioo-button) !important; background-color: transparent !important; border: 2px solid var(--nioo-button) !important; }
+.btn-outline-danger:hover, .btn-outline-danger:focus, .btn-primary:hover, .btn-primary:focus { color: #FFFFFF !important; background-color: var(--nioo-button) !important; border-color: var(--nioo-button) !important; box-shadow: none !important; }
+.btn-selected { color: #FFFFFF !important; background-color: var(--nioo-button) !important; border: 2px solid var(--nioo-button) !important; }
+.btn-selected:hover, .btn-selected:focus { color: var(--nioo-button) !important; background-color: transparent !important; box-shadow: none !important; }
 
 .btn-info-circle {
   background-color: transparent !important;
-  color: #FFFFFF !important;
-  border: 1px solid rgba(255,255,255,0.85);
+  color: var(--nioo-link) !important;
+  border: 1.5px solid var(--nioo-link);
   width: var(--info-btn-size);
   height: var(--info-btn-size);
   padding: 0 !important;
-  font-size: 1rem;
-  font-weight: 700;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
   border-radius: 50% !important;
   line-height: calc(var(--info-btn-size) - 2px);
   transition: all 0.15s ease;
@@ -266,22 +281,20 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
   flex: 0 0 auto;
 }
 .btn-info-circle:hover, .btn-info-circle:focus {
-  background-color: #FF6347 !important;
-  border-color: #FF6347 !important;
-  transform: translateY(calc(var(--info-nudge-vertical) - 1px));
-  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  background-color: var(--nioo-link) !important;
+  color: #FFFFFF !important;
+  border-color: var(--nioo-link) !important;
 }
-.btn-info-circle:focus-visible { outline: 3px solid rgba(255,99,71,0.22); outline-offset: 2px; }
+.btn-info-circle:focus-visible { outline: 3px solid rgba(0,75,133,0.25); outline-offset: 2px; }
 
-.btn-outline-danger { color: #FFFFFF; border-color: #FF6347; }
-.btn-outline-danger:hover, .btn-outline-danger:focus { color: #FFFFFF; background-color: #FF6347; }
-
-.modal-content { border-radius: 12px; background-color: #4169E1; color: #FFFFFF; }
-.modal-content a { color: #FFFFFF; text-decoration: underline; }
-.modal-content h5 { font-size: 1rem; font-weight: 600; margin-top: 14px; }
-.modal-content .table { color: #FFFFFF; }
-.modal-footer .btn { background-color: transparent; color: #FFFFFF; border: 1px solid #FF6347; border-radius: 8px; padding: 6px 12px; font-size: 0.85rem; transition: all 0.2s; }
-.modal-footer .btn:hover, .modal-footer .btn:focus { background-color: #FF6347; color: #FFFFFF; border-color: #FF6347; }
+.modal-content { border-radius: 12px; background-color: #FFFFFF; color: var(--nioo-text); border: none; }
+.modal-title { font-family: 'EB Garamond', serif; font-weight: 600; color: var(--nioo-title); font-size: 28px; }
+.modal-content a { color: var(--nioo-text); text-decoration: underline; }
+.modal-content h5 { font-size: 1.15rem; font-weight: 600; margin-top: 14px; }
+.modal-content .table { color: var(--nioo-text); }
+.modal-content .table th { color: var(--nioo-title); }
+.modal-footer .btn { background-color: transparent; color: var(--nioo-button); border: 2px solid var(--nioo-button); border-radius: 1.8rem; padding: 9px 15px 8px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; transition: all .2s ease; }
+.modal-footer .btn:hover, .modal-footer .btn:focus { background-color: var(--nioo-button); color: #FFFFFF; border-color: var(--nioo-button); }
 
 .hero .container-fluid { text-align: left; padding-left: 20px; padding-right: 20px; }
 .hero-logo { display: flex; justify-content: flex-end; align-items: flex-start; }
@@ -289,17 +302,18 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 @media (max-width: 767px) { .hero-logo { justify-content: flex-start; margin-bottom: 12px; } .hero-logo img { height: 80px; } }
 @media (max-width: 767px) { .hero h1 { font-size: 2.2rem; } }
 
-.tree-checkbox { margin-bottom: 6px; font-size: 0.95rem; color: #FFFFFF; }
+.tree-checkbox { margin-bottom: 6px; font-size: 0.95rem; color: var(--nioo-text); }
 .tree-checkbox .nested { margin-left: 18px; }
-.tree-scroll { max-height: 300px; min-height: 160px; overflow-y: auto; padding: 8px 12px; border-radius: 8px; background: transparent; }
-.tree-checkbox label { color: #FFFFFF; }
+.tree-scroll { max-height: 300px; min-height: 160px; overflow-y: auto; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--nioo-border); background: transparent; }
+.tree-checkbox label { color: var(--nioo-text); }
 
 .controls-panel .form-check-label,
 .controls-panel .form-check,
 .controls-panel .radio,
 .controls-panel .checkbox,
 .controls-panel .shiny-input-container label,
-.controls-panel .control-label { font-size: 0.95rem; color: #FFFFFF; }
+.controls-panel .control-label { font-size: 0.95rem; color: var(--nioo-text); }
+.controls-panel .control-label { font-weight: 600; }
 
 .controls-panel .row-with-icon { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .controls-panel .row-with-icon .input-area { flex: 1 1 auto; min-width: 0; }
@@ -307,6 +321,7 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 .controls-panel .domain-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .controls-panel .domain-tree { width: 100%; }
 .controls-panel .reset-row { margin-top: 8px; }
+.controls-panel hr { border-color: var(--nioo-border) !important; }
 
 @media (max-width: 576px) {
   .controls-panel { padding: 12px; }
@@ -317,9 +332,9 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 
 .tree-scroll::-webkit-scrollbar { width: 8px; }
 .tree-scroll::-webkit-scrollbar-track { background: transparent; border-radius: 8px; }
-.tree-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
-.tree-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.20); }
-.tree-scroll { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.12) transparent; }
+.tree-scroll::-webkit-scrollbar-thumb { background: rgba(8,34,53,0.15); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+.tree-scroll::-webkit-scrollbar-thumb:hover { background: rgba(8,34,53,0.25); }
+.tree-scroll { scrollbar-width: thin; scrollbar-color: rgba(8,34,53,0.15) transparent; }
 "
 
 # ------------------------------------------------------------------
@@ -338,7 +353,7 @@ ui <- fluidPage(
   div(class = "container-fluid hero",
       fluidRow(
         column(8,
-               h1(HTML('Repository <span class="title-highlight">Finder</span>')),
+               h1("Repository Finder"),
                p(class = "subtitle",
                  "Find a repository for your ecological and environmental research data.")
         ),
@@ -352,7 +367,8 @@ ui <- fluidPage(
            div(class = "controls-panel",
                h4("Selection criteria"),
 
-               # 1. Domain
+               # Your data: what it is and how big
+               # Domain
                div(class = "domain-header",
                    h5("Domain"),
                    actionButton("info_domain", "i", class = "btn-info-circle")),
@@ -360,13 +376,7 @@ ui <- fluidPage(
 
                tags$hr(style = "border-color: rgba(255,99,71,0.15);"),
 
-               # 2. Access
-               filter_row(checkboxGroupInput("access", "Access", choices = ACCESS_CHOICES), "info_access"),
-
-               # 3. Licence
-               filter_row(checkboxGroupInput("license", "Licence", choices = LICENSE_CHOICES), "info_license"),
-
-               # 4. Size
+               # Size
                filter_row(radioButtons("size", "Size of your data",
                                        choices = c("Any size" = "any", setNames(names(SIZE_BANDS), names(SIZE_BANDS))),
                                        selected = "any"),
@@ -374,8 +384,21 @@ ui <- fluidPage(
 
                tags$hr(style = "border-color: rgba(255,99,71,0.10);"),
 
-               # 5 + 6. Embargo
-               filter_row(checkboxInput("need_embargo", "I need an embargo", value = FALSE), "info_embargo"),
+               # Dealbreakers: can you use it, and may the data live there
+               # Cost
+               filter_row(checkboxGroupInput("free_to_store", "Free to store data", choices = FREE_CHOICES, inline = TRUE), "info_free"),
+               # Storage location
+               filter_row(checkboxGroupInput("storage_region", "Data stored in", choices = REGION_CHOICES, inline = TRUE), "info_region"),
+
+               tags$hr(style = "border-color: rgba(255,99,71,0.10);"),
+
+               # Who may see and reuse the data
+               # Access
+               filter_row(checkboxGroupInput("access", "Access", choices = ACCESS_CHOICES), "info_access"),
+
+               # Embargo
+               filter_row(tagList(tags$label(class = "control-label", "Embargo"),
+                                  checkboxInput("need_embargo", "I need an embargo", value = FALSE)), "info_embargo"),
                conditionalPanel(
                  condition = "input.need_embargo == true",
                  style = "margin-left: 18px;",
@@ -384,13 +407,15 @@ ui <- fluidPage(
                               selected = "any")
                ),
 
+               # Licence
+               filter_row(checkboxGroupInput("license", "Licence", choices = LICENSE_CHOICES), "info_license"),
+
                tags$hr(style = "border-color: rgba(255,99,71,0.10);"),
 
-               # 7-9. Version control, API, DOI
+               # Extras
+               filter_row(checkboxGroupInput("doi_service", "DOI service", choices = YES_NO, inline = TRUE), "info_doi"),
                filter_row(checkboxGroupInput("version_control", "Version control", choices = YES_NO, inline = TRUE), "info_version"),
                filter_row(checkboxGroupInput("api_access", "API access", choices = YES_NO, inline = TRUE), "info_api"),
-               filter_row(checkboxGroupInput("doi_service", "DOI service", choices = YES_NO, inline = TRUE), "info_doi"),
-               filter_row(checkboxGroupInput("affiliation_required", "Affiliation required", choices = YES_NO, inline = TRUE), "info_affiliation"),
 
                div(class = "reset-row",
                    actionButton("reset", "Clear filters", class = "btn-outline-danger btn-small mt-2"))
@@ -452,7 +477,7 @@ server <- function(input, output, session) {
     data <- repos
     keep <- function(rows) data[rows, , drop = FALSE]
 
-    # 1. Domain - generalist repositories are never excluded
+    # Domain - generalist repositories are never excluded
     domains <- allowed_domains()
     if (length(domains)) {
       data <- keep(vapply(seq_len(nrow(data)), function(i) {
@@ -462,19 +487,19 @@ server <- function(input, output, session) {
       }, logical(1)))
     }
 
-    # 2-3. Access and licence - repositories offering any ticked value
+    # Access and licence - repositories offering any ticked value
     if (length(input$access))
       data <- keep(vapply(data$access, matches_any, logical(1), wanted = input$access))
     if (length(input$license))
       data <- keep(vapply(data$license_terms, matches_any, logical(1), wanted = input$license))
 
-    # 4. Size - per-deposit capacity of at least the chosen band
+    # Size - per-deposit capacity of at least the chosen band
     if (!is.null(input$size) && input$size != "any") {
       cap <- as_capacity(data$max_size_gb)
       data <- keep(is.na(cap) | cap >= SIZE_BANDS[[input$size]])
     }
 
-    # 5-6. Embargo - supported, and for at least the chosen length
+    # Embargo - supported, and for at least the chosen length
     if (isTRUE(input$need_embargo)) {
       data <- keep(is.na(data$embargo_supported) | data$embargo_supported != "No")
       if (!is.null(input$embargo_length) && input$embargo_length != "any") {
@@ -483,11 +508,15 @@ server <- function(input, output, session) {
       }
     }
 
-    # 7-10. Yes / No criteria
-    for (col in c("version_control", "api_access", "doi_service", "affiliation_required")) {
+    # Yes / No criteria (and cost)
+    for (col in c("version_control", "api_access", "doi_service", "free_to_store")) {
       wanted <- input[[col]]
       if (length(wanted)) data <- keep(is.na(data[[col]]) | data[[col]] %in% wanted)
     }
+
+    # Storage location - repositories storing in any ticked region
+    if (length(input$storage_region))
+      data <- keep(vapply(data$storage_region, matches_any, logical(1), wanted = input$storage_region))
 
     data
   })
@@ -501,7 +530,7 @@ server <- function(input, output, session) {
   # ---- Reset --------------------------------------------------------
   observeEvent(input$reset, {
     for (id in TREE_INPUTS) updateCheckboxInput(session, id, value = FALSE)
-    for (id in c("access", "license", "version_control", "api_access", "doi_service", "affiliation_required"))
+    for (id in c("access", "license", "version_control", "api_access", "doi_service", "free_to_store", "storage_region"))
       updateCheckboxGroupInput(session, id, selected = character(0))
     updateRadioButtons(session, "size", selected = "any")
     updateCheckboxInput(session, "need_embargo", value = FALSE)
@@ -528,29 +557,27 @@ server <- function(input, output, session) {
           actionButton("compare_btn", "Compare repositories", class = "btn-small btn-primary"),
           span(paste0(n, " selected")))
     } else if (n == 1) {
-      div(style = "margin-bottom: 12px; color: #B0C4FF;", "Select 1 more repository to enable comparison.")
+      div(class = "muted", style = "margin-bottom: 12px;", "Select 1 more repository to enable comparison.")
     }
   })
 
   # ---- Cards --------------------------------------------------------
   output$repo_grid <- renderUI({
     data <- filtered_data()
-    if (nrow(data) == 0) return(h4("No repositories match your selection", style = "color: #B0C4FF;"))
+    if (nrow(data) == 0) return(h4("No repositories match your selection", class = "muted"))
     selected <- selections$selected
 
     cards <- lapply(seq_len(nrow(data)), function(i) {
       repo <- data[i, , drop = FALSE]
       rid  <- make_id(repo$name)
       is_selected <- repo$name %in% selected
-      domains <- split_multi(repo$domain)
 
       column(width = 6, class = "mb-4",
         div(class = "repo-card",
             h4(repo$name),
-            if (identical(repo$domain_scope, "any")) div(class = "domain-line", "Generalist - any domain")
-            else if (length(domains)) div(class = "domain-line", paste(vapply(domains, domain_path, character(1)), collapse = " · ")),
-            tags$ul(class = "repo-facts", repo_facts(repo)),
             div(class = "card-actions",
+                if (!is.na(repo$website)) tags$a(href = repo$website, target = "_blank", rel = "noopener",
+                                             class = "btn btn-outline-danger btn-small btn-store", "Store Data"),
                 actionButton(paste0("sel_", rid), if (is_selected) "Selected" else "Compare",
                              class = if (is_selected) "btn-small btn-selected" else "btn-outline-danger btn-small"),
                 actionButton(paste0("req_", rid), "Requirements", class = "btn-outline-danger btn-small"))
@@ -573,7 +600,8 @@ server <- function(input, output, session) {
       )
       offers <- c(
         repo_facts(repo),
-        list(fact("Who can deposit", format_eligibility(repo$eligibility, repo$institutions)))
+        list(fact("Who can deposit", format_eligibility(repo$eligibility, repo$institutions)),
+             fact("Data stored in", if (is.na(repo$storage_location)) UNKNOWN else repo$storage_location))
       )
       showModal(modalDialog(
         title = repo$name,
@@ -602,8 +630,9 @@ server <- function(input, output, session) {
       "Version control" = function(r) format_yes_no(r$version_control),
       "API access"      = function(r) format_yes_no(r$api_access),
       "DOI service"     = function(r) format_yes_no(r$doi_service),
-      "Affiliation required" = function(r) format_yes_no(r$affiliation_required),
-      "Who can deposit" = function(r) format_eligibility(r$eligibility, r$institutions)
+      "Free to store data" = function(r) format_yes_no(r$free_to_store),
+      "Who can deposit" = function(r) format_eligibility(r$eligibility, r$institutions),
+      "Data stored in"  = function(r) if (is.na(r$storage_location)) UNKNOWN else r$storage_location
     )
     tbl <- tags$table(
       class = "table table-striped table-sm",
@@ -650,8 +679,10 @@ server <- function(input, output, session) {
        "Whether you can publish a new version of a dataset while earlier versions stay available.")
   info("info_api", "API access",
        "Whether the repository offers programmatic access to its data or metadata (for example a REST API or OAI-PMH).")
-  info("info_affiliation", "Affiliation required",
-       "Whether you must belong to a specific university, institute or network to deposit data here (for example Yoda and Git@WUR are for WUR staff only). Repositories that anyone can use, even if they charge a fee to non-members, count as no. The Requirements pop-up shows who can deposit.")
+  info("info_free", "Free to store data",
+       "Whether you can deposit data without paying. Depends on institute means it is free only if your university or institute is a member or partner (for example 4TU.ResearchData is free for WUR staff, and Yoda and Git@WUR are for WUR staff only). The Requirements pop-up shows who can deposit.")
+  info("info_region", "Data stored in",
+       "Where the repository physically keeps your files. Useful when your funder, institution or privacy rules (GDPR) require data to stay in Europe. Notes: OSF stores in the United States by default but lets you pick Germany (or Canada, Australia) per project. ENA and NCBI mirror sequence data between Europe, the US and Japan. GBIF and OBIS depend on the node you publish through, so they are always shown. The Requirements pop-up gives the country.")
   info("info_doi", "DOI service",
        "Whether the repository issues a DOI (a persistent, citable identifier) for your deposit.")
 }
