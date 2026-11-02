@@ -343,7 +343,7 @@ ui <- fluidPage(
                  "Find a repository for your ecological and environmental research data.")
         ),
         column(4, class = "hero-logo",
-               tags$img(src = "nature_data_cube_logo.png", alt = "LTER-LIFE Nature Data Cube"))
+               tags$img(src = "lter_life_logo.svg", alt = "LTER-LIFE"))
       )
   ),
 
