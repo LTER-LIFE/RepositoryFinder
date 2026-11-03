@@ -19,10 +19,8 @@ read_data <- function(file) {
 
 repos    <- read_data("repositories.csv")
 taxonomy <- read_data("gemet_hierarchical_listing_3_2026.csv")
-# community_databases.csv (repositories 25-30) is kept as a separate file and is
-# deliberately not loaded here.
 
-# Alphabetical order. The confidence column is kept for maintainers only.
+# Alphabetical order. 
 repos <- repos[order(tolower(repos$name)), , drop = FALSE]
 rownames(repos) <- NULL
 
