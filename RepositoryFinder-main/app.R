@@ -682,7 +682,7 @@ server <- function(input, output, session) {
   info("info_free", "Free to store data",
        "Whether you can deposit data without paying. Depends on institute means it is free only if your university or institute is a member or partner (for example 4TU.ResearchData is free for WUR staff, and Yoda and Git@WUR are for WUR staff only). The Requirements pop-up shows who can deposit.")
   info("info_region", "Data stored in",
-       "Where the repository physically keeps your files. Useful when your funder, institution or privacy rules (GDPR) require data to stay in Europe. Notes: OSF stores in the United States by default but lets you pick Germany (or Canada, Australia) per project. ENA and NCBI mirror sequence data between Europe, the US and Japan. GBIF and OBIS depend on the node you publish through, so they are always shown. The Requirements pop-up gives the country.")
+       "Where the repository physically keeps your files. Useful when your funder, institution or privacy rules (GDPR) require data to stay in Europe. The Requirements pop-up gives the country.")
   info("info_doi", "DOI service",
        "Whether the repository issues a DOI (a persistent, citable identifier) for your deposit.")
 }
