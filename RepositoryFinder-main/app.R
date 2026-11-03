@@ -110,8 +110,11 @@ taxonomy_nested <- local({
 
 build_maps <- function(tree) {
   leaf_map <- list(); leaves_under_sub <- list(); leaves_under_cat <- list()
+  # Input ids nested below each checkbox, so unticking a parent can untick them
+  children <- list()
   for (category in names(tree)) {
     cid <- make_id(category)
+    cat_input <- paste0("cat_", cid)
     cat_leaves <- character(0)
     for (subcategory in names(tree[[category]])) {
       sub_core  <- paste0(cid, "_", make_id(subcategory))
@@ -119,20 +122,22 @@ build_maps <- function(tree) {
       leaves    <- tree[[category]][[subcategory]]
       leaves_under_sub[[sub_input]] <- leaves
       cat_leaves <- c(cat_leaves, leaves)
-      for (leaf in leaves) {
-        leaf_map[[paste0("leaf_", sub_core, "_", make_id(leaf))]] <- leaf
-      }
+      leaf_inputs <- paste0("leaf_", sub_core, "_", make_id(leaves))
+      for (j in seq_along(leaves)) leaf_map[[leaf_inputs[j]]] <- leaves[j]
+      children[[sub_input]] <- leaf_inputs
+      children[[cat_input]] <- c(children[[cat_input]], sub_input, leaf_inputs)
     }
-    leaves_under_cat[[paste0("cat_", cid)]] <- unique(cat_leaves)
+    leaves_under_cat[[cat_input]] <- unique(cat_leaves)
   }
   list(leaf_map = leaf_map, leaves_under_sub = leaves_under_sub,
-       leaves_under_cat = leaves_under_cat)
+       leaves_under_cat = leaves_under_cat, children = children)
 }
 
 maps             <- build_maps(taxonomy_nested)
 leaf_map         <- maps$leaf_map
 leaves_under_sub <- maps$leaves_under_sub
 leaves_under_cat <- maps$leaves_under_cat
+tree_children    <- maps$children
 TREE_INPUTS      <- c(names(leaves_under_cat), names(leaves_under_sub), names(leaf_map))
 
 # ------------------------------------------------------------------
@@ -458,6 +463,15 @@ server <- function(input, output, session) {
     })
   })
 
+  # Unticking a category or subcategory unticks everything below it. Otherwise
+  # the hidden children stay ticked and keep filtering.
+  lapply(names(tree_children), function(id) {
+    observeEvent(input[[id]], {
+      if (!isTRUE(input[[id]]))
+        for (child in tree_children[[id]]) updateCheckboxInput(session, child, value = FALSE)
+    }, ignoreInit = TRUE)
+  })
+
   # The most specific ticked level wins: leaves, then subcategories, then categories.
   allowed_domains <- reactive({
     ticked <- function(ids) ids[vapply(ids, function(id) isTRUE(input[[id]]), logical(1))]
@@ -524,6 +538,11 @@ server <- function(input, output, session) {
     if (n == 0) return(NULL)
     p(class = "result-count", sprintf("%d %s", n, if (n == 1) "repository" else "repositories"))
   })
+
+  # Unticking "I need an embargo" also resets the hidden length choice
+  observeEvent(input$need_embargo, {
+    if (!isTRUE(input$need_embargo)) updateRadioButtons(session, "embargo_length", selected = "any")
+  }, ignoreInit = TRUE)
 
   # ---- Reset --------------------------------------------------------
   observeEvent(input$reset, {
