@@ -1010,10 +1010,10 @@ server <- function(input, output, session) {
             p(class = "repo-desc", repo$description),
           div(class = "card-actions",
               if (!is.na(repo$website)) tags$a(href = repo$website, target = "_blank", rel = "noopener",
-                                           class = "btn btn-outline-danger btn-small btn-store", "Store Data"),
+                                           class = "btn btn-outline-danger btn-small btn-store", "Visit the repository's website"),
               actionButton(paste0("sel_", rid), if (is_selected) "Selected" else "Compare",
                            class = if (is_selected) "btn-small btn-selected" else "btn-outline-danger btn-small"),
-              actionButton(paste0("req_", rid), "Requirements", class = "btn-outline-danger btn-small"))
+              actionButton(paste0("req_", rid), "Information", class = "btn-outline-danger btn-small"))
       )
     }
 
