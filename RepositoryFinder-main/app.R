@@ -138,6 +138,97 @@ tree_children    <- maps$children
 TREE_INPUTS      <- c(names(leaves_under_cat), names(leaves_under_sub), names(leaf_map))
 
 # ------------------------------------------------------------------
+# Guided questions ("Help me choose")
+# ------------------------------------------------------------------
+# One question per filter. Each choice is c(label, short explanation); the
+# explanation may be "". The answers are turned into ticked filters by
+# apply_wizard_answers() in the server, so a question here only needs a
+# matching rule there.
+domain_hint <- function(category) {
+  key <- toupper(substr(category, 1, 5))
+  switch(key,
+         "NATUR" = "For example species, habitats, soil, water or climate.",
+         "HUMAN" = "For example agriculture, land use, pollution or fisheries.",
+         "SOCIA" = "For example policy, management or socio-economic data.",
+         "")
+}
+
+WIZARD_STEPS <- list(
+  list(id = "domain", type = "multi",
+       title = "What is your data about?",
+       help  = "Pick the topics that fit your dataset. You can refine them afterwards in the domain list.",
+       choices = setNames(lapply(names(taxonomy_nested), function(cat)
+                            c(sub("^(.)", "\\U\\1", tolower(cat), perl = TRUE), domain_hint(cat))),
+                          names(taxonomy_nested))),
+  list(id = "size", type = "size",
+       title = "How much data do you want to deposit at once?",
+       help  = "An estimate is fine. Leave it empty if you do not know yet."),
+  list(id = "access", type = "multi",
+       title = "Who should be able to get your files?",
+       help  = "Pick every option that would work for you.",
+       choices = list(
+         Open       = c("Open", "Anyone can download the files."),
+         Restricted = c("Restricted", "People have to request access or log in."),
+         Closed     = c("Closed", "Only the description is public; the files stay private.")
+       )[ACCESS_CHOICES]),
+  list(id = "embargo", type = "single",
+       title = "Do your files need to stay closed for a while after publishing?",
+       help  = "This is called an embargo, for example until your paper is out. The description of the dataset is public meanwhile.",
+       choices = list(
+         no          = c("No", ""),
+         any         = c("Yes, but I don't know for how long yet", ""),
+         `6 months`  = c("Yes, at least 6 months", ""),
+         `12 months` = c("Yes, at least 12 months", ""),
+         `24 months` = c("Yes, at least 24 months", ""),
+         `36 months` = c("Yes, at least 36 months", ""),
+         `No limit`  = c("Yes, with no time limit", "")
+       )),
+  list(id = "license", type = "multi",
+       title = "Under which terms may others reuse your data?",
+       help  = "Pick every option you are comfortable with.",
+       choices = list(
+         `No restrictions`     = c("No restrictions", "Anyone may reuse it for anything (for example CC0)."),
+         `Credit required`     = c("Credit required", "Reuse is fine if they cite you (for example CC BY)."),
+         `Share alike`         = c("Share alike", "Derived work must be shared under the same terms (for example CC BY-SA)."),
+         `Non-commercial only` = c("Non-commercial only", "No commercial reuse (for example CC BY-NC)."),
+         Custom                = c("Custom", "Terms are agreed with the repository per deposit.")
+       )),
+  list(id = "free", type = "single",
+       title = "Does storing your data need to be free?",
+       help  = "Some repositories are only free if your university or institute is a member.",
+       choices = list(
+         must     = c("Yes, it must be free", ""),
+         institute = c("Free through my institute is also fine", ""),
+         paying   = c("Paying is fine", "")
+       )),
+  list(id = "region", type = "single",
+       title = "Where may your data be stored?",
+       help  = "Your project, funder or institute may require storage in Europe.",
+       choices = list(
+         europe   = c("Only in Europe", ""),
+         eu_us    = c("In Europe or the United States", ""),
+         anywhere = c("Anywhere", "")
+       )),
+  list(id = "extras", type = "multi",
+       title = "Anything else you need?",
+       help  = "Pick what you need, or skip this question if none of these matter.",
+       choices = list(
+         doi_service     = c("A DOI", "A persistent identifier so others can cite your dataset."),
+         version_control = c("Version control", "Publish new versions while older ones stay available."),
+         api_access      = c("API access", "Get to the data from scripts or other software.")
+       ))
+)
+
+# Choice labels with a short grey explanation underneath
+wizard_choice_names <- function(choices) {
+  unname(lapply(choices, function(ch) {
+    if (nzchar(ch[2])) tags$span(tags$span(class = "wiz-choice-label", ch[1]),
+                                 tags$span(class = "wiz-choice-help", ch[2]))
+    else tags$span(class = "wiz-choice-label", ch[1])
+  }))
+}
+
+# ------------------------------------------------------------------
 # Display helpers. Every undocumented value is shown as UNKNOWN, so the
 # wording is identical whichever field is missing.
 # ------------------------------------------------------------------
@@ -245,6 +336,39 @@ input[type=checkbox], input[type=radio] { accent-color: var(--nioo-link); }
 .controls-panel h5 { font-size: 18px; margin: 0; }
 .repo-card { background: #FFFFFF; border: 1px solid var(--nioo-border); border-radius: 12px; padding: 18px; margin-bottom: 30px; height: 100%; display: flex; flex-direction: column; }
 .repo-card h4 { font-weight: 600; font-size: 22px; margin-bottom: 6px; }
+
+/* Floating compare bar */
+.results-col { padding-bottom: 110px; }
+.cmp-bar { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 1030; width: max-content; max-width: calc(100vw - 32px); box-sizing: border-box; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; justify-content: center; background: #FFFFFF; border: 1px solid var(--nioo-border); border-radius: 16px; padding: 12px 16px; box-shadow: 0 8px 28px rgba(8, 34, 53, 0.18); animation: cmp-in .2s ease-out; }
+@keyframes cmp-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.cmp-chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.cmp-chip { display: inline-flex; align-items: center; gap: 2px; padding: 3px 4px 3px 12px; border-radius: 999px; background: #E6EFF6; color: var(--nioo-text); font-size: 0.88rem; line-height: 1.4; }
+.cmp-chip-x { width: 28px; height: 28px; border: 0; background: transparent; border-radius: 50%; color: rgba(8, 34, 53, 0.65); font-size: 18px; line-height: 1; padding: 0; cursor: pointer; }
+.cmp-chip-x:hover, .cmp-chip-x:focus { background: rgba(0, 75, 133, 0.15); color: var(--nioo-text); }
+.cmp-actions { display: flex; align-items: center; gap: 14px; }
+.cmp-hint { font-size: 0.88rem; color: rgba(8, 34, 53, 0.7); }
+.cmp-clear { background: none; border: 0; padding: 6px 4px; font-size: 0.88rem; color: rgba(8, 34, 53, 0.7); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.cmp-clear:hover, .cmp-clear:focus { color: var(--nioo-link); }
+
+/* Results split into recommended by LTER-LIFE and other repositories */
+.suit-box { border-radius: 14px; padding: 16px 16px 2px; margin-bottom: 24px; }
+.suit-rec { background: rgba(0, 75, 133, 0.07); border: 1px solid rgba(0, 75, 133, 0.18); }
+.suit-other { background: rgba(8, 34, 53, 0.04); border: 1px solid rgba(8, 34, 53, 0.10); }
+.suit-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+.suit-header h4 { margin: 0; font-size: 22px; }
+.suit-other .suit-header h4 { color: rgba(8, 34, 53, 0.75); }
+.suit-count { font-family: 'Open Sans', sans-serif; font-size: 0.9rem; font-weight: 400; color: rgba(8, 34, 53, 0.6); margin-left: 6px; }
+.suit-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 14px; }
+@media (max-width: 991px) { .suit-cards { grid-template-columns: minmax(0, 1fr); } }
+.suit-box .repo-card { height: 100%; margin-bottom: 0; }
+.suit-box .suit-extra { display: none; }
+.suit-box.expanded .suit-extra { display: block; }
+.suit-toggle-row { display: flex; justify-content: center; margin: -4px 0 12px; }
+.suit-toggle { background: none; border: 0; padding: 6px 8px; font-size: 0.85rem; color: rgba(8, 34, 53, 0.65); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.suit-toggle::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 8px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-3px) rotate(45deg); }
+.suit-box.expanded .suit-toggle::after { transform: translateY(1px) rotate(-135deg); }
+.suit-toggle:hover, .suit-toggle:focus { color: var(--nioo-link); }
+.suit-empty { margin: 4px 0 16px; }
 .repo-card .repo-desc { font-size: 0.95rem; line-height: 1.6; color: rgba(8,34,53,.75); margin-bottom: 8px; }
 .repo-card .card-actions { margin-top: auto; padding-top: 10px; display: grid; grid-template-columns: auto auto; justify-content: start; gap: 8px; }
 .repo-facts { list-style: none; padding-left: 0; margin-bottom: 0; font-size: 0.9rem; }
@@ -308,6 +432,33 @@ input[type=checkbox], input[type=radio] { accent-color: var(--nioo-link); }
 .size-input input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .size-input input[type=number]::-webkit-inner-spin-button,
 .size-input input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+/* Guided questions */
+.wiz-callout { background: #FFF6D6; border: 1px solid #F2D675; border-radius: 10px; padding: 14px 16px; margin-bottom: 18px; font-size: 0.95rem; line-height: 1.5; }
+.wiz-callout.done { background: #E6EFF6; border-color: #C9DBEA; }
+.wiz-callout strong { display: block; margin-bottom: 4px; }
+.wiz-callout .btn-small { margin-top: 10px; }
+.wiz-callout .wiz-links { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 6px; }
+.wiz-progress { height: 6px; background: var(--nioo-border); border-radius: 3px; overflow: hidden; margin: 6px 0 18px; }
+.wiz-progress > div { height: 6px; background: var(--nioo-button); border-radius: 3px; transition: width .2s ease; }
+.modal-body:has(.wiz-close) { padding: 32px 40px 16px; }
+.wiz-close { position: absolute; top: 10px; right: 12px; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--nioo-text); font-size: 30px; line-height: 1; border-radius: 50%; }
+.wiz-close:hover, .wiz-close:focus { background: var(--nioo-page); }
+.wiz-footer .btn:disabled { opacity: .35; cursor: not-allowed; }
+.wiz-step-count { font-size: 0.85rem; font-weight: 600; letter-spacing: .4px; color: rgba(8,34,53,.7); }
+.wiz-title { font-size: 28px; margin-bottom: 4px; }
+.wiz-help { color: rgba(8,34,53,.7); margin-bottom: 14px; }
+.wiz-body .shiny-input-container { width: 100%; }
+.wiz-body .checkbox, .wiz-body .radio { border: 1px solid var(--nioo-border); border-radius: 10px; padding: 10px 14px; margin: 0 0 8px; }
+.wiz-body .checkbox label, .wiz-body .radio label { display: flex; gap: 12px; align-items: flex-start; width: 100%; margin: 0; padding: 0; cursor: pointer; }
+.wiz-body .checkbox input, .wiz-body .radio input { position: static; margin: 5px 0 0; flex: none; }
+.wiz-body .checkbox:has(input:checked), .wiz-body .radio:has(input:checked), .wiz-body .form-check:has(input:checked) { border-color: var(--nioo-button); background: #E6EFF6; }
+.wiz-choice-label { display: block; font-weight: 600; }
+.wiz-choice-help { display: block; font-size: 0.88rem; color: rgba(8,34,53,.7); }
+.wiz-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--nioo-border); padding-top: 16px; margin-top: 8px; }
+.wiz-footer .right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.wiz-skip { background: none; border: 0; color: var(--nioo-link); text-decoration: underline; font-size: 0.9rem; padding: 8px 6px; }
+.btn-filled { color: #FFFFFF !important; background-color: var(--nioo-button) !important; border: 2px solid var(--nioo-button) !important; }
+.btn-filled:hover, .btn-filled:focus { color: var(--nioo-button) !important; background-color: transparent !important; box-shadow: none !important; }
 .tree-checkbox { margin-bottom: 6px; font-size: 0.95rem; color: var(--nioo-text); }
 .tree-checkbox .nested { margin-left: 18px; }
 .tree-scroll { max-height: 300px; min-height: 160px; overflow-y: auto; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--nioo-border); background: transparent; }
@@ -373,6 +524,9 @@ ui <- fluidPage(
            div(class = "controls-panel",
                h4("Selection criteria"),
 
+               # Guided route: answer a few questions and the filters get ticked
+               uiOutput("wizard_callout"),
+
                # Your data: what it is and how big
                # Domain
                div(class = "domain-header",
@@ -430,11 +584,13 @@ ui <- fluidPage(
                    actionButton("reset", "Clear filters", class = "btn-outline-danger btn-small mt-2"))
            )
     ),
-    column(width = 9,
-           uiOutput("compare_ui"),
+    column(width = 9, class = "results-col",
            uiOutput("result_count"),
            uiOutput("repo_grid"))
-  )
+  ),
+
+  # Floating compare bar (bottom of the screen, only while repositories are selected)
+  uiOutput("compare_bar")
 )
 
 # ------------------------------------------------------------------
@@ -552,8 +708,236 @@ server <- function(input, output, session) {
     if (!isTRUE(input$need_embargo)) updateRadioButtons(session, "embargo_length", selected = "any")
   }, ignoreInit = TRUE)
 
+  # ---- Guided questions ("Help me choose") ---------------------------
+  n_steps <- length(WIZARD_STEPS)
+  wiz <- reactiveValues(step = 1, answers = list(), applied = FALSE,
+                        expected = NULL, synced = FALSE)
+
+  output$wizard_callout <- renderUI({
+    if (isTRUE(wiz$applied)) {
+      div(class = "wiz-callout done",
+          "The filters below were ticked from your answers. You can still change them.",
+          div(class = "wiz-links",
+              actionLink("wiz_edit", "Change my answers"),
+              actionLink("wiz_restart", "Start over")))
+    } else {
+      div(class = "wiz-callout",
+          tags$strong("Not sure what to pick?"),
+          div(actionButton("wiz_open", "Help me choose", class = "btn-small btn-filled")))
+    }
+  })
+
+  # The input for one question, pre-filled with an earlier answer (going Back)
+  wizard_input <- function(step, saved) {
+    id <- paste0("wiz_", step$id)
+    switch(step$type,
+      multi  = checkboxGroupInput(id, NULL, choiceNames = wizard_choice_names(step$choices),
+                                  choiceValues = names(step$choices),
+                                  selected = if (length(saved)) saved else character(0)),
+      single = radioButtons(id, NULL, choiceNames = wizard_choice_names(step$choices),
+                            choiceValues = names(step$choices),
+                            selected = if (length(saved)) saved else character(0)),
+      size   = div(class = "size-input",
+                   numericInput("wiz_size_amount", NULL, value = if (length(saved)) saved$amount else NA,
+                                min = 0, step = 1, width = "160px"),
+                   selectInput("wiz_size_unit", NULL, choices = names(SIZE_UNITS),
+                               selected = if (length(saved)) saved$unit else "GB", width = "90px"))
+    )
+  }
+
+  next_label <- function(i) if (i == n_steps) "Show repositories" else "Next"
+
+  # Answers as they were when the pop-up opened; closing with the x restores
+  # them, so nothing from an unfinished round is kept.
+  answers_before <- list()
+
+  output$wizard_body <- renderUI({
+    i <- wiz$step
+    step <- WIZARD_STEPS[[i]]
+    tagList(
+      div(class = "wiz-step-count", sprintf("Question %d of %d", i, n_steps)),
+      div(class = "wiz-progress", div(style = sprintf("width: %d%%;", round(100 * i / n_steps)))),
+      h3(class = "wiz-title", step$title),
+      p(class = "wiz-help", step$help),
+      div(class = "wiz-body", wizard_input(step, isolate(wiz$answers[[step$id]])))
+    )
+  })
+
+  open_wizard <- function() {
+    answers_before <<- isolate(wiz$answers)
+    wiz$step <- 1
+    showModal(modalDialog(
+      actionButton("wiz_close", HTML("&times;"), class = "wiz-close",
+                   `aria-label` = "Close without saving", title = "Close without saving"),
+      uiOutput("wizard_body"),
+      footer = div(class = "wiz-footer", style = "width: 100%;",
+                   actionButton("wiz_back", "Previous question", class = "btn-outline-danger btn-small",
+                                disabled = TRUE),
+                   div(class = "right",
+                       actionButton("wiz_skip", "I don't know / skip", class = "wiz-skip"),
+                       actionButton("wiz_next", next_label(1), class = "btn-small btn-filled",
+                                    disabled = TRUE))),
+      size = "l", easyClose = FALSE
+    ))
+  }
+
+  observeEvent(wiz$step, {
+    updateActionButton(session, "wiz_back", disabled = wiz$step == 1)
+    updateActionButton(session, "wiz_next", label = next_label(wiz$step))
+  })
+
+  # Has the open question been answered? Next only works when it has;
+  # "I don't know / skip" is always available.
+  current_answered <- reactive({
+    step <- WIZARD_STEPS[[wiz$step]]
+    if (step$type == "size") {
+      amount <- suppressWarnings(as.numeric(input$wiz_size_amount))
+      length(amount) == 1 && !is.na(amount) && amount > 0
+    } else {
+      length(input[[paste0("wiz_", step$id)]]) > 0
+    }
+  })
+
+  observe({
+    updateActionButton(session, "wiz_next", disabled = !current_answered())
+  })
+
+  set_answer <- function(id, value) {
+    a <- wiz$answers
+    a[[id]] <- value
+    wiz$answers <- a
+  }
+
+  # Store what is currently filled in for the open question
+  save_current <- function() {
+    step <- WIZARD_STEPS[[wiz$step]]
+    value <- if (step$type == "size") {
+      amount <- suppressWarnings(as.numeric(input$wiz_size_amount))
+      if (length(amount) == 1 && !is.na(amount) && amount > 0) list(amount = amount, unit = input$wiz_size_unit)
+    } else {
+      v <- input[[paste0("wiz_", step$id)]]
+      if (length(v)) v
+    }
+    set_answer(step$id, value)
+  }
+
+  # Turn the answers into ticked filters. A skipped question leaves its filter
+  # empty, so an empty answer list clears every filter.
+  GROUP_FILTERS <- c("access", "license", "free_to_store", "storage_region",
+                     "doi_service", "version_control", "api_access")
+
+  # The filter values that a set of answers stands for
+  wizard_target <- function(a) {
+    embargo <- if (length(a$embargo)) a$embargo else "no"
+    free    <- if (length(a$free)) a$free else "none"
+    region  <- if (length(a$region)) a$region else "none"
+    t <- list(
+      tree           = paste0("cat_", make_id(a$domain)),
+      size_amount    = if (length(a$size)) a$size$amount else NA,
+      size_unit      = if (length(a$size)) a$size$unit else "GB",
+      need_embargo   = embargo != "no",
+      embargo_length = if (embargo == "no") "any" else embargo,
+      access         = a$access,
+      license        = a$license,
+      free_to_store  = switch(free, must = "Yes", institute = c("Yes", "Depends on institute"), character(0)),
+      storage_region = switch(region, europe = "Europe", eu_us = c("Europe", "United States"), character(0))
+    )
+    for (col in c("doi_service", "version_control", "api_access"))
+      t[[col]] <- if (col %in% a$extras) "Yes" else character(0)
+    t
+  }
+
+  # One comparable shape for both the target and the live filter values
+  normalise_filters <- function(f) {
+    chr <- function(x) if (length(x)) sort(as.character(x)) else character(0)
+    amount <- suppressWarnings(as.numeric(f$size_amount))
+    out <- list(
+      tree         = chr(f$tree),
+      size_amount  = if (length(amount) == 1 && !is.na(amount) && amount > 0) amount else NA_real_,
+      size_unit    = if (length(f$size_unit)) as.character(f$size_unit) else "GB",
+      need_embargo = isTRUE(f$need_embargo),
+      embargo_length = if (isTRUE(f$need_embargo) && length(f$embargo_length)) f$embargo_length else "any"
+    )
+    for (col in GROUP_FILTERS) out[[col]] <- chr(f[[col]])
+    out
+  }
+
+  current_filters <- reactive({
+    f <- lapply(c("size_amount", "size_unit", "need_embargo", "embargo_length", GROUP_FILTERS),
+                function(id) input[[id]])
+    names(f) <- c("size_amount", "size_unit", "need_embargo", "embargo_length", GROUP_FILTERS)
+    f$tree <- TREE_INPUTS[vapply(TREE_INPUTS, function(id) isTRUE(input[[id]]), logical(1))]
+    normalise_filters(f)
+  })
+
+  # The "ticked from your answers" box stays only while the filters still match
+  # the answers. The browser needs a moment to tick them, so first wait until
+  # they match once; after that, any difference means the user changed a filter.
+  observe({
+    now <- current_filters()
+    expected <- wiz$expected   # also re-check when new answers are applied
+    isolate({
+      if (!isTRUE(wiz$applied) || is.null(expected)) return()
+      if (!isTRUE(wiz$synced)) {
+        if (identical(now, expected)) wiz$synced <- TRUE
+      } else if (!identical(now, expected)) {
+        wiz$applied <- FALSE
+      }
+    })
+  })
+
+  apply_wizard_answers <- function(a) {
+    t <- wizard_target(a)
+    for (id in TREE_INPUTS) updateCheckboxInput(session, id, value = id %in% t$tree)
+    updateNumericInput(session, "size_amount", value = t$size_amount)
+    updateSelectInput(session, "size_unit", selected = t$size_unit)
+    updateCheckboxInput(session, "need_embargo", value = t$need_embargo)
+    updateRadioButtons(session, "embargo_length", selected = t$embargo_length)
+    for (col in GROUP_FILTERS)
+      updateCheckboxGroupInput(session, col, selected = if (length(t[[col]])) t[[col]] else character(0))
+    wiz$expected <- normalise_filters(t)
+    wiz$synced <- FALSE
+  }
+
+  go_forward <- function() {
+    if (wiz$step < n_steps) {
+      wiz$step <- wiz$step + 1
+    } else {
+      apply_wizard_answers(wiz$answers)
+      wiz$applied <- TRUE
+      removeModal()
+    }
+  }
+
+  observeEvent(input$wiz_open, open_wizard())
+  observeEvent(input$wiz_edit, open_wizard())
+  observeEvent(input$wiz_restart, {
+    wiz$answers <- list()
+    wiz$applied <- FALSE
+    apply_wizard_answers(list())
+    open_wizard()
+  })
+  observeEvent(input$wiz_next, {
+    if (!current_answered()) return()   # safety net; the button is greyed out then
+    save_current()
+    go_forward()
+  })
+  observeEvent(input$wiz_skip, { set_answer(WIZARD_STEPS[[wiz$step]]$id, NULL); go_forward() })
+  observeEvent(input$wiz_back, {
+    if (wiz$step > 1) {
+      save_current()
+      wiz$step <- wiz$step - 1
+    }
+  })
+  observeEvent(input$wiz_close, {
+    wiz$answers <- answers_before
+    removeModal()
+  })
+
   # ---- Reset --------------------------------------------------------
   observeEvent(input$reset, {
+    wiz$answers <- list()
+    wiz$applied <- FALSE
     for (id in TREE_INPUTS) updateCheckboxInput(session, id, value = FALSE)
     for (id in c("access", "license", "version_control", "api_access", "doi_service", "free_to_store", "storage_region"))
       updateCheckboxGroupInput(session, id, selected = character(0))
@@ -576,15 +960,37 @@ server <- function(input, output, session) {
     }, ignoreInit = TRUE)
   })
 
-  output$compare_ui <- renderUI({
-    n <- length(selections$selected)
-    if (n >= 2) {
-      div(style = "display:flex; align-items:center; gap:8px; margin-bottom: 12px;",
-          actionButton("compare_btn", "Compare repositories", class = "btn-small btn-primary"),
-          span(paste0(n, " selected")))
-    } else if (n == 1) {
-      div(class = "muted", style = "margin-bottom: 12px;", "Select 1 more repository to enable comparison.")
-    }
+  # Floating bar at the bottom of the screen while repositories are selected.
+  # Its buttons send one-off events from the browser (instead of actionButtons),
+  # because the bar is redrawn on every change and a redrawn actionButton can
+  # miss a click.
+  send_event <- function(id, value = "1")
+    sprintf("Shiny.setInputValue('%s', %s, {priority: 'event'});", id, value)
+
+  output$compare_bar <- renderUI({
+    sel <- selections$selected
+    n <- length(sel)
+    if (n == 0) return(NULL)
+    chips <- lapply(sel, function(name) {
+      tags$span(class = "cmp-chip", name,
+                tags$button(type = "button", class = "cmp-chip-x", HTML("&times;"),
+                            `aria-label` = paste("Remove", name, "from comparison"),
+                            onclick = send_event("cmp_remove", jsonlite::toJSON(name, auto_unbox = TRUE))))
+    })
+    div(class = "cmp-bar", role = "region", `aria-label` = "Repositories selected for comparison",
+        div(class = "cmp-chips", chips),
+        div(class = "cmp-actions",
+            if (n == 1) tags$span(class = "cmp-hint", "Select one more to compare")
+            else tags$button(type = "button", class = "btn btn-small btn-filled",
+                             onclick = send_event("cmp_open"), sprintf("Compare (%d)", n)),
+            tags$button(type = "button", class = "cmp-clear", onclick = send_event("cmp_clear"), "Clear all")))
+  })
+
+  observeEvent(input$cmp_remove, {
+    selections$selected <- setdiff(selections$selected, input$cmp_remove)
+  })
+  observeEvent(input$cmp_clear, {
+    selections$selected <- character(0)
   })
 
   # ---- Cards --------------------------------------------------------
@@ -593,27 +999,70 @@ server <- function(input, output, session) {
     if (nrow(data) == 0) return(h4("No repositories match your selection", class = "muted"))
     selected <- selections$selected
 
-    cards <- lapply(seq_len(nrow(data)), function(i) {
+    make_card <- function(i) {
       repo <- data[i, , drop = FALSE]
       rid  <- make_id(repo$name)
       is_selected <- repo$name %in% selected
 
-      column(width = 6, class = "mb-4",
-        div(class = "repo-card",
-            h4(repo$name),
-            if (!is.null(repo$description) && !is.na(repo$description))
-              p(class = "repo-desc", repo$description),
-            div(class = "card-actions",
-                if (!is.na(repo$website)) tags$a(href = repo$website, target = "_blank", rel = "noopener",
-                                             class = "btn btn-outline-danger btn-small btn-store", "Store Data"),
-                actionButton(paste0("sel_", rid), if (is_selected) "Selected" else "Compare",
-                             class = if (is_selected) "btn-small btn-selected" else "btn-outline-danger btn-small"),
-                actionButton(paste0("req_", rid), "Requirements", class = "btn-outline-danger btn-small"))
-        )
+      div(class = "repo-card",
+          h4(repo$name),
+          if (!is.null(repo$description) && !is.na(repo$description))
+            p(class = "repo-desc", repo$description),
+          div(class = "card-actions",
+              if (!is.na(repo$website)) tags$a(href = repo$website, target = "_blank", rel = "noopener",
+                                           class = "btn btn-outline-danger btn-small btn-store", "Store Data"),
+              actionButton(paste0("sel_", rid), if (is_selected) "Selected" else "Compare",
+                           class = if (is_selected) "btn-small btn-selected" else "btn-outline-danger btn-small"),
+              actionButton(paste0("req_", rid), "Requirements", class = "btn-outline-danger btn-small"))
       )
-    })
-    rows <- split(cards, ceiling(seq_along(cards) / 2))
-    tagList(lapply(rows, function(r) do.call(fluidRow, unname(r))))
+    }
+
+    # Two columns: recommended by LTER-LIFE, and the rest. Anything not marked
+    # "Recommended" in lter_life_suitability (including empty) counts as other.
+    suit <- if ("lter_life_suitability" %in% names(data)) data$lter_life_suitability else rep(NA, nrow(data))
+    is_rec <- !is.na(suit) & tolower(trimws(suit)) == "recommended"
+
+    # Each box shows its first row of cards; a button shows the rest. The toggle
+    # runs in the browser and tells the server, so a box that was opened stays
+    # open when the results are redrawn (after Compare or a filter change).
+    SHOW_FIRST <- 2
+    toggle_js <- function(key) paste0(
+      "var b = this.closest('.suit-box'); var open = b.classList.toggle('expanded');",
+      "this.textContent = open ? this.dataset.less : this.dataset.more;",
+      "this.setAttribute('aria-expanded', open);",
+      "Shiny.setInputValue('suit_open_", key, "', open);")
+
+    suit_box <- function(rows, title, info_id, box_class, empty_text, more_text) {
+      n <- length(rows)
+      key <- sub("suit-", "", box_class)
+      is_open <- isTRUE(isolate(input[[paste0("suit_open_", key)]]))
+      cards <- lapply(seq_along(rows), function(k) {
+        card <- make_card(rows[k])
+        if (k > SHOW_FIRST) div(class = "suit-extra", card) else card
+      })
+      div(class = paste("suit-box", box_class, if (is_open) "expanded"),
+          div(class = "suit-header",
+              h4(title, tags$span(class = "suit-count", sprintf("(%d)", n))),
+              actionButton(info_id, "i", class = "btn-info-circle")),
+          if (n) div(class = "suit-cards", cards)
+          else p(class = "muted suit-empty", empty_text),
+          if (n > SHOW_FIRST)
+            div(class = "suit-toggle-row",
+                tags$button(type = "button", class = "suit-toggle",
+                            `aria-expanded` = if (is_open) "true" else "false", onclick = toggle_js(key),
+                            `data-more` = sprintf(more_text, n), `data-less` = "Show fewer",
+                            if (is_open) "Show fewer" else sprintf(more_text, n))))
+    }
+
+    # Recommended first, the other repositories underneath
+    tagList(
+      suit_box(which(is_rec), "Recommended by LTER-LIFE", "info_recommended", "suit-rec",
+               "No recommended repositories match your selection.",
+               "Show all %d recommended repositories"),
+      suit_box(which(!is_rec), "Other repositories", "info_other", "suit-other",
+               "No other repositories match your selection.",
+               "Show all %d other repositories")
+    )
   })
 
   # ---- Requirements modal --------------------------------------------
@@ -645,7 +1094,7 @@ server <- function(input, output, session) {
   })
 
   # ---- Compare modal --------------------------------------------------
-  observeEvent(input$compare_btn, {
+  observeEvent(input$cmp_open, {
     sels <- repos[repos$name %in% selections$selected, , drop = FALSE]
     if (nrow(sels) < 2) return()
 
@@ -686,6 +1135,19 @@ server <- function(input, output, session) {
       showModal(modalDialog(title = title, HTML(body), easyClose = TRUE, footer = modalButton("Close")))
     })
   }
+  info("info_recommended", "Recommended by LTER-LIFE",
+       paste0("These repositories meet all LTER-LIFE criteria:<ul>",
+              "<li><b>DOI</b>: every published dataset gets a DOI, so it can be cited.</li>",
+              "<li><b>Open access</b>: data can be published openly.</li>",
+              "<li><b>Stored in Europe</b>: the data is kept on servers in Europe.</li>",
+              "<li><b>Open to deposit</b>: researchers from LTER-LIFE institutes can deposit data themselves; the repository is not for members only.</li>",
+              "<li><b>A real archive</b>: the repository keeps your files long term. Portals that collect data from elsewhere (such as GBIF or OBIS) and networks with their own database do not count.</li></ul>",
+              "Recommended does not mean it fits every dataset: check the information on each card."))
+  info("info_other", "Other repositories",
+       paste0("These repositories do not meet all LTER-LIFE criteria (see the i next to Recommended by LTER-LIFE), ",
+              "or we do not have enough information about them yet.<br><br>",
+              "They can still be the right place for your data. For example ENA is the standard archive for DNA sequences, ",
+              "and GBIF makes species records findable worldwide next to an archived copy elsewhere."))
   info("info_domain", "Domain",
        "Tick a category, subcategory or term. The most specific level you tick is used.")
   info("info_access", "Access",
