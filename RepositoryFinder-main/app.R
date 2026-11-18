@@ -68,14 +68,11 @@ LICENSE_CHOICES <- c(
   "Custom"              = "Custom"
 )
 
-# Size: the value is the capacity (GB) a repository needs to hold data of that
-# size, so the comparison is ">= what I need".
-SIZE_BANDS <- c(
-  "Up to 50 GB"    = 50,
-  "50 GB - 300 GB" = 300,
-  "300 GB - 1 TB"  = 1000,
-  "More than 1 TB" = 1e6
-)
+# Size: the user types how much data they have; a repository matches when its
+# per-deposit capacity is at least that amount. Fixed bands were dropped because
+# any band either hides repositories that fit the low end of it or shows ones
+# too small for the high end.
+SIZE_UNITS <- c("GB" = 1, "TB" = 1000)
 
 # Embargo: a repository allowing 24 months satisfies someone who needs 12.
 EMBARGO_BANDS <- c(
@@ -248,6 +245,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--nioo-link); }
 .controls-panel h5 { font-size: 18px; margin: 0; }
 .repo-card { background: #FFFFFF; border: 1px solid var(--nioo-border); border-radius: 12px; padding: 18px; margin-bottom: 30px; height: 100%; display: flex; flex-direction: column; }
 .repo-card h4 { font-weight: 600; font-size: 22px; margin-bottom: 6px; }
+.repo-card .repo-desc { font-size: 0.95rem; line-height: 1.6; color: rgba(8,34,53,.75); margin-bottom: 8px; }
 .repo-card .card-actions { margin-top: auto; padding-top: 10px; display: grid; grid-template-columns: auto auto; justify-content: start; gap: 8px; }
 .repo-facts { list-style: none; padding-left: 0; margin-bottom: 0; font-size: 0.9rem; }
 .repo-facts li { margin-bottom: 3px; }
@@ -305,6 +303,11 @@ input[type=checkbox], input[type=radio] { accent-color: var(--nioo-link); }
 @media (max-width: 767px) { .hero-logo { justify-content: flex-start; margin-bottom: 12px; } .hero-logo img { height: 80px; } }
 @media (max-width: 767px) { .hero h1 { font-size: 2.2rem; } }
 
+.size-input { display: flex; gap: 8px; align-items: flex-start; }
+.size-input .form-group { margin-bottom: 4px; }
+.size-input input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.size-input input[type=number]::-webkit-inner-spin-button,
+.size-input input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .tree-checkbox { margin-bottom: 6px; font-size: 0.95rem; color: var(--nioo-text); }
 .tree-checkbox .nested { margin-left: 18px; }
 .tree-scroll { max-height: 300px; min-height: 160px; overflow-y: auto; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--nioo-border); background: transparent; }
@@ -380,9 +383,12 @@ ui <- fluidPage(
                tags$hr(style = "border-color: rgba(255,99,71,0.15);"),
 
                # Size
-               filter_row(radioButtons("size", "Size of your data",
-                                       choices = c("Any size" = "any", setNames(names(SIZE_BANDS), names(SIZE_BANDS))),
-                                       selected = "any"),
+               filter_row(div(class = "form-group shiny-input-container",
+                              tags$label(class = "control-label", `for` = "size_amount", "Size of your data"),
+                              div(class = "size-input",
+                                  numericInput("size_amount", NULL, value = NA, min = 0, step = 1, width = "120px"),
+                                  selectInput("size_unit", NULL, choices = names(SIZE_UNITS), selected = "GB", width = "80px")),
+                              div(class = "muted", style = "font-size: 0.85rem;", "Leave empty for any size.")),
                           "info_size"),
 
                tags$hr(style = "border-color: rgba(255,99,71,0.10);"),
@@ -505,10 +511,12 @@ server <- function(input, output, session) {
     if (length(input$license))
       data <- keep(vapply(data$license_terms, matches_any, logical(1), wanted = input$license))
 
-    # Size - per-deposit capacity of at least the chosen band
-    if (!is.null(input$size) && input$size != "any") {
+    # Size - per-deposit capacity of at least the amount entered
+    needed <- suppressWarnings(as.numeric(input$size_amount))
+    if (length(needed) == 1 && !is.na(needed) && needed > 0) {
+      needed_gb <- needed * SIZE_UNITS[[input$size_unit]]
       cap <- as_capacity(data$max_size_gb)
-      data <- keep(is.na(cap) | cap >= SIZE_BANDS[[input$size]])
+      data <- keep(is.na(cap) | cap >= needed_gb)
     }
 
     # Embargo - supported, and for at least the chosen length
@@ -549,7 +557,8 @@ server <- function(input, output, session) {
     for (id in TREE_INPUTS) updateCheckboxInput(session, id, value = FALSE)
     for (id in c("access", "license", "version_control", "api_access", "doi_service", "free_to_store", "storage_region"))
       updateCheckboxGroupInput(session, id, selected = character(0))
-    updateRadioButtons(session, "size", selected = "any")
+    updateNumericInput(session, "size_amount", value = NA)
+    updateSelectInput(session, "size_unit", selected = "GB")
     updateCheckboxInput(session, "need_embargo", value = FALSE)
     updateRadioButtons(session, "embargo_length", selected = "any")
   })
@@ -592,6 +601,8 @@ server <- function(input, output, session) {
       column(width = 6, class = "mb-4",
         div(class = "repo-card",
             h4(repo$name),
+            if (!is.null(repo$description) && !is.na(repo$description))
+              p(class = "repo-desc", repo$description),
             div(class = "card-actions",
                 if (!is.na(repo$website)) tags$a(href = repo$website, target = "_blank", rel = "noopener",
                                              class = "btn btn-outline-danger btn-small btn-store", "Store Data"),
@@ -689,7 +700,7 @@ server <- function(input, output, session) {
               "Need help choosing a licence? <br><a href=\"",
               url_license_chooser, "\" target=\"_blank\">Open the licence chooser</a>"))
   info("info_size", "Size of your data",
-       "Shows repositories that can hold at least this much data in one deposit.")
+       "Enter how much data you want to deposit at once. Only repositories that can hold at least that much in one deposit are shown. Repositories without a known size limit are always shown; check with them directly.")
   info("info_embargo", "Embargo",
        "An embargo keeps your files closed until a set date while the dataset description is already public. Choose a length to see repositories that allow an embargo of at least that long.")
   info("info_version", "Version control",
